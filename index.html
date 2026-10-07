@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GrowthVault Cloud Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans pb-12">
+
+  <!-- Top Bar -->
+  <header class="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center sticky top-0 z-50">
+    <div>
+      <div class="flex items-center gap-1.5">
+        <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <h1 class="text-base font-bold text-emerald-400">GrowthVault</h1>
+      </div>
+      <p class="text-[11px] text-slate-400">Live Cloud Prototype</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <select id="roleSelector" onchange="window.switchRole(this.value)" class="bg-slate-800 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 text-emerald-300 font-medium focus:outline-none">
+        <option value="user">User View (Phone B)</option>
+        <option value="admin">Admin Dashboard (Phone A)</option>
+      </select>
+    </div>
+  </header>
+
+  <main class="max-w-md mx-auto p-4 space-y-5">
+
+    <!-- USER VIEW -->
+    <div id="userSection" class="space-y-4">
+      <!-- Balance Card -->
+      <div class="bg-gradient-to-br from-emerald-600 to-teal-800 p-5 rounded-2xl shadow-lg">
+        <p class="text-xs uppercase tracking-wider text-emerald-200 font-medium">Your Active Portfolio</p>
+        <p class="text-3xl font-extrabold mt-1 tracking-tight" id="userTotalBalance">₹0</p>
+        <div class="flex justify-between items-center mt-4 text-xs text-emerald-100 border-t border-emerald-500/40 pt-3">
+          <span>Active Deposits: <b id="userActivePlans">0</b></span>
+          <span>Target Rate: <b>8.5% p.a.</b></span>
+        </div>
+      </div>
+
+      <!-- Deposit Form -->
+      <div class="bg-slate-900 p-5 rounded-xl border border-slate-800 space-y-3">
+        <h3 class="font-semibold text-sm text-slate-200">Submit New Deposit Request</h3>
+        <div>
+          <label class="text-xs text-slate-400">Investor Full Name</label>
+          <input type="text" id="investorName" placeholder="e.g. Suresh Kumar" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="text-xs text-slate-400">Deposit Amount (₹)</label>
+          <input type="number" id="investAmount" placeholder="Min. ₹1,000" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="text-xs text-slate-400">Duration (Lock-in)</label>
+          <select id="investTenure" class="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+            <option value="12">12 Months (8.5% Return)</option>
+            <option value="24">24 Months (9.5% Return)</option>
+            <option value="36">36 Months (10.5% Return)</option>
+          </select>
+        </div>
+        <button id="submitBtn" onclick="window.submitInvestment()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-2.5 rounded-lg text-sm transition">
+          Submit to Admin
+        </button>
+      </div>
+
+      <!-- User Active Investments List -->
+      <div class="space-y-2">
+        <h4 class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Live Deposit Status</h4>
+        <div id="userInvestmentsList" class="space-y-2">
+          <p class="text-xs text-slate-500 text-center py-4">Connecting to live cloud database...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADMIN VIEW -->
+    <div id="adminSection" class="hidden space-y-4">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+          <p class="text-xs text-slate-400">Approved Balance</p>
+          <p class="text-xl font-bold text-emerald-400 mt-1" id="adminTotalFunds">₹0</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+          <p class="text-xs text-slate-400">Pending Approvals</p>
+          <p class="text-xl font-bold text-amber-400 mt-1" id="adminPendingCount">0</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+        <div class="flex justify-between items-center">
+          <h3 class="font-semibold text-sm">Investor Requests</h3>
+          <span class="text-[11px] text-slate-400">Syncing Live</span>
+        </div>
+        <div id="adminRequestsList" class="space-y-3">
+          <p class="text-xs text-slate-500 text-center py-4">Loading cloud data...</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modern Firebase Modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      addDoc, 
+      onSnapshot, 
+      doc, 
+      updateDoc, 
+      serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC7S-e7SaquS-jDcrXPyddTSSid7fvpd-M",
+      authDomain: "family-business-demo-1---rmn.firebaseapp.com",
+      projectId: "family-business-demo-1---rmn",
+      storageBucket: "family-business-demo-1---rmn.firebasestorage.app",
+      messagingSenderId: "732789961234",
+      appId: "1:732789961234:web:ca5c12772ea4e7925b22cb",
+      measurementId: "G-M5V1RW0MEH"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    // Explicitly connect to your database ID 'default'
+    const db = getFirestore(app, "default");
+
+    window.switchRole = function(role) {
+      const userSec = document.getElementById('userSection');
+      const adminSec = document.getElementById('adminSection');
+      if (role === 'admin') {
+        userSec.classList.add('hidden');
+        adminSec.classList.remove('hidden');
+      } else {
+        adminSec.classList.add('hidden');
+        userSec.classList.remove('hidden');
+      }
+    };
+
+    // Live sync listener
+    onSnapshot(collection(db, 'investments'), (snapshot) => {
+      const records = [];
+      snapshot.forEach(d => {
+        records.push({ id: d.id, ...d.data() });
+      });
+      records.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      renderViews(records);
+    }, (error) => {
+      alert("Database error: " + error.message);
+      console.error(error);
+    });
+
+    window.submitInvestment = async function() {
+      const name = document.getElementById('investorName').value.trim();
+      const amount = parseFloat(document.getElementById('investAmount').value);
+      const tenure = document.getElementById('investTenure').value;
+      const btn = document.getElementById('submitBtn');
+
+      if (!name || isNaN(amount) || amount < 1000) {
+        alert('Please enter a valid name and amount (Min ₹1,000)');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'Submitting...';
+
+      try {
+        await addDoc(collection(db, 'investments'), {
+          name: name,
+          amount: amount,
+          tenure: tenure + ' Months',
+          status: 'Pending Verification',
+          createdAt: serverTimestamp()
+        });
+
+        document.getElementById('investorName').value = '';
+        document.getElementById('investAmount').value = '';
+        alert('Deposit request saved to cloud!');
+      } catch (err) {
+        alert('Upload failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Submit to Admin';
+      }
+    };
+
+    window.updateStatus = async function(id, newStatus) {
+      try {
+        await updateDoc(doc(db, 'investments', id), {
+          status: newStatus
+        });
+      } catch (err) {
+        alert('Update error: ' + err.message);
+      }
+    };
+
+    function renderViews(records) {
+      const approvedTotal = records
+        .filter(r => r.status === 'Approved')
+        .reduce((sum, r) => sum + r.amount, 0);
+
+      document.getElementById('userTotalBalance').innerText = '₹' + approvedTotal.toLocaleString('en-IN');
+      document.getElementById('userActivePlans').innerText = records.filter(r => r.status === 'Approved').length;
+
+      const userList = document.getElementById('userInvestmentsList');
+      if (records.length === 0) {
+        userList.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No deposits recorded yet.</p>`;
+      } else {
+        userList.innerHTML = records.map(r => `
+          <div class="bg-slate-900 border border-slate-800 p-3 rounded-lg flex justify-between items-center text-xs">
+            <div>
+              <p class="font-semibold text-slate-200">₹${r.amount.toLocaleString('en-IN')} (${r.tenure})</p>
+              <p class="text-[10px] text-slate-400">${r.name}</p>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-medium ${
+              r.status === 'Approved' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
+              r.status === 'Rejected' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 
+              'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+            }">${r.status}</span>
+          </div>
+        `).join('');
+      }
+
+      const pendingCount = records.filter(r => r.status === 'Pending Verification').length;
+      document.getElementById('adminTotalFunds').innerText = '₹' + approvedTotal.toLocaleString('en-IN');
+      document.getElementById('adminPendingCount').innerText = pendingCount;
+
+      const adminList = document.getElementById('adminRequestsList');
+      if (records.length === 0) {
+        adminList.innerHTML = `<p class="text-xs text-slate-500 text-center py-4">No pending investor requests.</p>`;
+      } else {
+        adminList.innerHTML = records.map(r => `
+          <div class="bg-slate-800/60 border border-slate-700/60 p-3 rounded-lg text-xs space-y-2">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="font-bold text-slate-100">${r.name}</p>
+                <p class="text-[11px] text-slate-400">Amount: ₹${r.amount.toLocaleString('en-IN')} | ${r.tenure}</p>
+              </div>
+              <span class="text-[10px] font-medium text-slate-300">${r.status}</span>
+            </div>
+            ${r.status === 'Pending Verification' ? `
+              <div class="flex gap-2 pt-1">
+                <button onclick="window.updateStatus('${r.id}', 'Approved')" class="flex-1 bg-emerald-600 text-white py-1 rounded text-[11px] font-medium hover:bg-emerald-500">Approve</button>
+                <button onclick="window.updateStatus('${r.id}', 'Rejected')" class="flex-1 bg-rose-600/80 text-white py-1 rounded text-[11px] font-medium hover:bg-rose-500">Reject</button>
+              </div>
+            ` : ''}
+          </div>
+        `).join('');
+      }
+    }
+  </script>
+</body>
+</html>
